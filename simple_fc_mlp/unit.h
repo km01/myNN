@@ -69,7 +69,6 @@ public:
 		weight_len = input_size * output_size;
 
 		Give_function(activator, f, output_size);
-
 		weight = new double[weight_len];
 		gradients_weight = new double[weight_len];
 
@@ -137,17 +136,10 @@ public:
 	}
 	virtual void alloc_batch_storage(const int& new_batch_size) {
 		if (batch_memory_allocated) {
-			for (int i = 0; i < batch_size; i++) {
-				delete[] batch_port[i];
-				delete[] batch_pre_activated_container[i];
-				delete[] batch_inner_deltaflow[i];
-				delete[] batch_input_container[i];
-
-			}
-			delete[] batch_inner_deltaflow;
-			delete[] batch_port;
-			delete[] batch_input_container;
-			delete[] batch_pre_activated_container;
+			km_2d::free(batch_inner_deltaflow, batch_size);
+			km_2d::free(batch_port, batch_size);
+			km_2d::free(batch_input_container, batch_size);
+			km_2d::free(batch_pre_activated_container, batch_size);
 		}
 		
 		batch_size = new_batch_size;
@@ -292,17 +284,10 @@ public:
 	}
 	virtual ~perceptrons() {
 		if (batch_memory_allocated) {
-			for (int i = 0; i < batch_size; i++) {
-				delete[] batch_port[i];
-				delete[] batch_pre_activated_container[i];
-				delete[] batch_inner_deltaflow[i];
-				delete[] batch_input_container[i];
-
-			}
-			delete[] batch_inner_deltaflow;
-			delete[] batch_port;
-			delete[] batch_input_container;
-			delete[] batch_pre_activated_container;
+			km_2d::free(batch_inner_deltaflow, batch_size);
+			km_2d::free(batch_port, batch_size);
+			km_2d::free(batch_input_container, batch_size);
+			km_2d::free(batch_pre_activated_container, batch_size);
 		}
 		delete activator;
 		delete[] weight;
