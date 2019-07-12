@@ -2,7 +2,7 @@
 #include "core.h"
 
 #define _square_(x) ((x)*(x))
-#define _triple_(x) ((x)*((x)*(x)))
+#define _cube_(x) ((x)*((x)*(x)))
 class unit {
 public:
 
@@ -287,36 +287,7 @@ public:
 		}
 	}
 };
-class Polynoimal3D : public activation {
-public:
-	Polynoimal3D() { c_alloc = false; fn = TANH; }
-	Polynoimal3D(int size) { create(size); fn = TANH; }
-	virtual unit* clone() {
-		return new Polynoimal3D(input_size);
-	}
-	void forward(double** &next_port) {
-		for (int m = 0; m < using_size; m++) {
-			for (int i = 0; i < input_size; i++) {
-				next_port[m][i] = (input_port_container[m][i] + 1.0)*(input_port_container[m][i] + 1.0)*(input_port_container[m][i] + 1.0)- 1.0;
-			}
-		}
-	}
-	void calculate(double* &next) {
-		double enx = 0.0, ex = 0.0;
-		for (int i = 0; i < input_size; i++) {
-			
-			next[i] = (in_port[i] + 1.0)*(in_port[i] + 1.0)*(in_port[i] + 1.0) - 1.0;
-		}
-	}
-	void backward(double** const& dLoss) {
-		double enx = 0.0, ex = 0.0;
-		for (int m = 0; m < using_size; m++) {
-			for (int i = 0; i < input_size; i++) {
-				downstream[m][i] = dLoss[m][i]*3.0*(input_port_container[m][i] + 1.0)*(input_port_container[m][i] + 1.0);
-			}
-		}
-	}
-};
+
 class Tanh : public activation {
 public:
 	Tanh() { c_alloc = false; fn = TANH; }
@@ -417,202 +388,6 @@ bool shape_check(shape in, shape k_shape, shape out, int h_stride, int w_stride)
 	}
 	return false;
 }
-
-class GaussianRBFKernel3D : public learnable {
-public:
-	shape in_dim;
-	shape out_dim;
-	shape kernel_dim;
-	int h_strd;
-	int w_strd;
-	bool w_alloc;
-	double** kernel;
-	int b_len;
-	int k_len;
-	double** k_grad;
-	double** L2dist_container;
-	double** kernel_output;
-	double* smoothness;
-	double* smoothness_grad;
-	double* bias;
-	double* b_grad;
-	int stride;
-	int in_plain_size, out_plain_size, kernel_plain_size;
-	GaussianRBFKernel3D() { w_alloc = false; c_alloc = false; }
-	virtual unit* clone() {
-		GaussianRBFKernel3D* _clone = new GaussianRBFKernel3D(in_dim, kernel_dim, out_dim, h_strd, w_strd);
-		for (int k = 0; k < out_dim.c; k++) {
-			for (int i = 0; i < k_len; i++) {
-				_clone->kernel[k][i] = kernel[k][i];
-			}
-			_clone->bias[k] = bias[k];
-		}
-		return _clone;
-	}
-
-	GaussianRBFKernel3D(shape in, shape k_shape, shape out, int h_stride, int w_stride) {
-		create(in, k_shape, out, h_stride, w_stride);
-	}
-
-	void create(shape in, shape k_shape, shape out, int h_stride, int w_stride) {
-		assert(shape_check(in, k_shape, out, h_stride, w_stride));
-		c_alloc = false;
-		input_size = in.c*in.h*in.w;
-		output_size = out.c*out.h*out.w;
-		b_len = out.c;
-		k_len = k_shape.c*k_shape.h*k_shape.w;
-		in_dim.copy(in);
-		out_dim.copy(out);
-		kernel_dim.copy(k_shape);
-		in_plain_size = in_dim.w* in_dim.h;
-		out_plain_size = out_dim.w* out_dim.h;
-		kernel_plain_size = kernel_dim.w* kernel_dim.h;
-		w_strd = w_stride; h_strd = h_stride;
-		kernel = km_2d::alloc(out.c, k_shape.c*k_shape.h*k_shape.w);
-		k_grad = km_2d::alloc(out.c, k_shape.c*k_shape.h*k_shape.w);
-		bias = km_1d::alloc(b_len);
-		b_grad = km_1d::alloc(b_len);
-		smoothness = km_1d::alloc(b_len);
-		for (int i = 0; i < b_len; i++) {
-			smoothness[i] = 0.5;
-		}
-		smoothness_grad = km_1d::alloc(b_len);
-		km_1d::fill_zero(bias, b_len);
-		km_2d::guassian_noise(kernel, 0.0, (2.0 / input_size), out.c, k_len);
-		w_alloc = true;
-		in_port = km_1d::alloc(input_size);
-	}
-	virtual void delegate(vector<double*>& p_bag, vector<double*>& g_bag, vector<int>& len_bag) {
-		for (int k = 0; k < out_dim.c; k++) {
-			p_bag.push_back(kernel[k]);
-			g_bag.push_back(k_grad[k]);
-			len_bag.push_back(k_len);
-		}
-		p_bag.push_back(bias);
-		g_bag.push_back(b_grad);
-		len_bag.push_back(b_len);
-
-		p_bag.push_back(smoothness);
-		g_bag.push_back(smoothness_grad); 
-		len_bag.push_back(b_len);
-	}
-	 
-	void alloc(int b_size) {
-		if (c_alloc) {
-			km_2d::free(input_port_container, max_batch_size);
-			km_2d::free(downstream_container, max_batch_size);
-			km_2d::free(L2dist_container, max_batch_size);
-			km_2d::free(kernel_output, max_batch_size);
-		}
-		max_batch_size = b_size;
-		using_size = max_batch_size;
-		input_port_container = km_2d::alloc(max_batch_size, input_size);
-		downstream_container = km_2d::alloc(max_batch_size, input_size);
-		L2dist_container = km_2d::alloc(max_batch_size, output_size);
-		kernel_output = km_2d::alloc(max_batch_size, output_size);
-		input_port = input_port_container;
-		downstream = downstream_container;
-		c_alloc = true;
-	}
-
-	~GaussianRBFKernel3D() {
-		if (w_alloc) {
-			km_2d::free(kernel, out_dim.c);
-			km_2d::free(k_grad, out_dim.c);
-			km_1d::free(bias);
-			km_1d::free(b_grad);
-		}
-		if (c_alloc) {
-			km_2d::free(input_port_container, max_batch_size);
-			km_2d::free(downstream_container, max_batch_size);
-			km_2d::free(L2dist_container, max_batch_size);
-			km_2d::free(kernel_output, max_batch_size);
-		}
-		km_1d::free(in_port);
-	}
-
-	void calculate(double* &next) {
-		km_1d::fill_zero(next, output_size);
-		for (int out_c = 0; out_c < out_dim.c; out_c++) {
-			for (int k = 0; k < out_plain_size; k++) {
-				next[(out_c * out_plain_size) + k] = bias[out_c];
-			}
-			for (int in_c = 0; in_c < in_dim.c; in_c++) {
-				for (int in_h = 0, out_h = 0; out_h < out_dim.h; in_h += h_strd, out_h++) {
-					for (int in_w = 0, out_w = 0; out_w < out_dim.w; in_w += w_strd, out_w++) {
-						for (int kh = 0; kh < kernel_dim.h; kh++) {
-							for (int kw = 0; kw < kernel_dim.w; kw++) { //out[out_c][out_h][out_w] += kernel[out_c][in_c][kernel_h][kernel_w] * in[in_c][in_h + kernel_h][in_w + kernel_w]
-								next[(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)] += kernel[out_c][(in_c*kernel_plain_size) + (kh * kernel_dim.w) + (kw)]
-									* in_port[(in_c * (in_plain_size)) + (in_dim.w *(in_h + kh)) + (in_w + kw)];
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	void forward(double** &next_port) {
-		km_2d::fill_zero(L2dist_container, using_size, output_size);
-		for (int m = 0; m < using_size; m++) {
-			for (int out_c = 0; out_c < out_dim.c; out_c++) {
-				for (int in_c = 0; in_c < in_dim.c; in_c++) {
-					for (int in_h = 0, out_h = 0; out_h < out_dim.h; in_h += h_strd, out_h++) {
-						for (int in_w = 0, out_w = 0; out_w < out_dim.w; in_w += w_strd, out_w++) {
-							for (int kh = 0; kh < kernel_dim.h; kh++) {
-								for (int kw = 0; kw < kernel_dim.w; kw++) { //out[out_c][out_h][out_w] += kernel[out_c][in_c][kernel_h][kernel_w] * in[in_c][in_h + kernel_h][in_w + kernel_w]
-									L2dist_container[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)] += (kernel[out_c][(in_c*kernel_plain_size) + (kh * kernel_dim.w) + (kw)]
-										- input_port[m][(in_c * (in_plain_size)) + (in_dim.w *(in_h + kh)) + (in_w + kw)]) * (kernel[out_c][(in_c*kernel_plain_size) + (kh * kernel_dim.w) + (kw)]
-										- input_port[m][(in_c * (in_plain_size)) + (in_dim.w *(in_h + kh)) + (in_w + kw)]);
-								}
-							}
-
-						}
-					}
-				}
-			}
-			for (int out_c = 0; out_c < out_dim.c; out_c++) {
-				for (int in_h = 0, out_h = 0; out_h < out_dim.h; in_h += h_strd, out_h++) {
-					for (int in_w = 0, out_w = 0; out_w < out_dim.w; in_w += w_strd, out_w++) {
-						kernel_output[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)] = exp((-1.0)*smoothness[out_c] * L2dist_container[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)]);
-						next_port[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)] = kernel_output[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)] + bias[out_c];
-					}
-				}
-			}
-		}
-	}
-
-	void backward(double** const& dLoss) {
-		double aLoss_ainput = 0.0;
-		km_2d::fill_zero(downstream, using_size, input_size);
-		for (int m = 0; m < using_size; m++) {
-			for (int out_c = 0; out_c < out_dim.c; out_c++) {
-				for (int k = 0; k < out_plain_size; k++) {
-					b_grad[out_c] += dLoss[m][(out_c * out_plain_size) + k];
-					smoothness_grad[out_c] += dLoss[m][(out_c * out_plain_size) + k] * kernel_output[m][(out_c * out_plain_size) + k] * (-L2dist_container[m][(out_c * out_plain_size) + k]);
-				}
-			}
-			for (int out_c = 0; out_c < out_dim.c; out_c++) {
-				for (int in_c = 0; in_c < in_dim.c; in_c++) {
-					for (int in_h = 0, out_h = 0; out_h < out_dim.h; in_h += h_strd, out_h++) {
-						for (int in_w = 0, out_w = 0; out_w < out_dim.w; in_w += w_strd, out_w++) {
-							for (int kh = 0; kh < kernel_dim.h; kh++) {
-								for (int kw = 0; kw < kernel_dim.w; kw++) {
-									aLoss_ainput = dLoss[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)]
-										* kernel_output[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)]
-										* (2.0*smoothness[out_c])
-										* (input_port[m][(in_c * (in_plain_size)) + (in_dim.w *(in_h + kh)) + (in_w + kw)] - kernel[out_c][(in_c*kernel_plain_size) + (kh * kernel_dim.w) + (kw)]);
-									downstream[m][(in_c * (in_plain_size)) + (in_dim.w *(in_h + kh)) + (in_w + kw)] -= aLoss_ainput;
-									k_grad[out_c][(in_c*kernel_plain_size) + (kh * kernel_dim.w) + (kw)] += aLoss_ainput;
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-};
-
 
 class kernel3D : public learnable {
 public:
@@ -778,7 +553,7 @@ public:
 	}
 };
 
-class Poly3DKernel3D : public learnable {
+class L2NormKernel3D : public learnable {
 public:
 	shape in_dim;
 	shape out_dim;
@@ -787,30 +562,22 @@ public:
 	int w_strd;
 	bool w_alloc;
 	double** kernel;
-	int b_len;
 	int k_len;
 	double** k_grad;
-	double* bias;
-	double* b_grad;
-
 	int stride;
 	int in_plain_size, out_plain_size, kernel_plain_size;
-	double* Cp;
-	double* Cp_grad;
-	double** dot_container;
-	Poly3DKernel3D() { w_alloc = false; c_alloc = false; }
+	L2NormKernel3D() { w_alloc = false; c_alloc = false; }
 	virtual unit* clone() {
-		Poly3DKernel3D* _clone = new Poly3DKernel3D(in_dim, kernel_dim, out_dim, h_strd, w_strd);
+		L2NormKernel3D* _clone = new L2NormKernel3D(in_dim, kernel_dim, out_dim, h_strd, w_strd);
 		for (int k = 0; k < out_dim.c; k++) {
 			for (int i = 0; i < k_len; i++) {
 				_clone->kernel[k][i] = kernel[k][i];
 			}
-			_clone->bias[k] = bias[k];
 		}
 		return _clone;
 	}
 
-	Poly3DKernel3D(shape in, shape k_shape, shape out, int h_stride, int w_stride) {
+	L2NormKernel3D(shape in, shape k_shape, shape out, int h_stride, int w_stride) {
 		create(in, k_shape, out, h_stride, w_stride);
 	}
 
@@ -819,7 +586,6 @@ public:
 		c_alloc = false;
 		input_size = in.c*in.h*in.w;
 		output_size = out.c*out.h*out.w;
-		b_len = out.c;
 		k_len = k_shape.c*k_shape.h*k_shape.w;
 		in_dim.copy(in);
 		out_dim.copy(out);
@@ -830,14 +596,6 @@ public:
 		w_strd = w_stride; h_strd = h_stride;
 		kernel = km_2d::alloc(out.c, k_shape.c*k_shape.h*k_shape.w);
 		k_grad = km_2d::alloc(out.c, k_shape.c*k_shape.h*k_shape.w);
-		bias = km_1d::alloc(b_len);
-		b_grad = km_1d::alloc(b_len);
-		km_1d::fill_zero(bias, b_len);
-		Cp = km_1d::alloc(b_len);
-		Cp_grad = km_1d::alloc(b_len);
-		for (int i = 0; i < b_len; i++) {
-			Cp[i] = 0.5;
-		}
 		km_2d::guassian_noise(kernel, 0.0, (2.0 / input_size), out.c, k_len);
 		w_alloc = true;
 		in_port = km_1d::alloc(input_size);
@@ -848,44 +606,30 @@ public:
 			g_bag.push_back(k_grad[k]);
 			len_bag.push_back(k_len);
 		}
-		p_bag.push_back(bias);
-		g_bag.push_back(b_grad);
-		len_bag.push_back(b_len);
-		p_bag.push_back(Cp);
-		g_bag.push_back(Cp_grad);
-		len_bag.push_back(b_len);
 	}
 
 	void alloc(int b_size) {
 		if (c_alloc) {
 			km_2d::free(input_port_container, max_batch_size);
 			km_2d::free(downstream_container, max_batch_size);
-			km_2d::free(dot_container, max_batch_size);
 		}
 		max_batch_size = b_size;
 		using_size = max_batch_size;
 		input_port_container = km_2d::alloc(max_batch_size, input_size);
 		downstream_container = km_2d::alloc(max_batch_size, input_size);
-		dot_container = km_2d::alloc(max_batch_size, output_size);
-
 		input_port = input_port_container;
 		downstream = downstream_container;
 		c_alloc = true;
 	}
 
-	~Poly3DKernel3D() {
+	~L2NormKernel3D() {
 		if (w_alloc) {
 			km_2d::free(kernel, out_dim.c);
 			km_2d::free(k_grad, out_dim.c);
-			km_1d::free(bias);
-			km_1d::free(b_grad);
-			km_1d::free(Cp);
-			km_1d::free(Cp_grad);
 		}
 		if (c_alloc) {
 			km_2d::free(input_port_container, max_batch_size);
 			km_2d::free(downstream_container, max_batch_size);
-			km_2d::free(dot_container, max_batch_size);
 		}
 		km_1d::free(in_port);
 	}
@@ -893,16 +637,13 @@ public:
 	void calculate(double* &next) {
 		km_1d::fill_zero(next, output_size);
 		for (int out_c = 0; out_c < out_dim.c; out_c++) {
-			for (int k = 0; k < out_plain_size; k++) {
-				next[(out_c * out_plain_size) + k] = bias[out_c];
-			}
 			for (int in_c = 0; in_c < in_dim.c; in_c++) {
 				for (int in_h = 0, out_h = 0; out_h < out_dim.h; in_h += h_strd, out_h++) {
 					for (int in_w = 0, out_w = 0; out_w < out_dim.w; in_w += w_strd, out_w++) {
 						for (int kh = 0; kh < kernel_dim.h; kh++) {
 							for (int kw = 0; kw < kernel_dim.w; kw++) { //out[out_c][out_h][out_w] += kernel[out_c][in_c][kernel_h][kernel_w] * in[in_c][in_h + kernel_h][in_w + kernel_w]
-								next[(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)] += kernel[out_c][(in_c*kernel_plain_size) + (kh * kernel_dim.w) + (kw)]
-									* in_port[(in_c * (in_plain_size)) + (in_dim.w *(in_h + kh)) + (in_w + kw)];
+								next[(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)] += _square_(kernel[out_c][(in_c*kernel_plain_size) + (kh * kernel_dim.w) + (kw)]
+									- in_port[(in_c * (in_plain_size)) + (in_dim.w *(in_h + kh)) + (in_w + kw)]);
 							}
 						}
 					}
@@ -911,7 +652,7 @@ public:
 		}
 	}
 	void forward(double** &next_port) {
-		km_2d::fill_zero(dot_container, using_size, output_size);
+		km_2d::fill_zero(next_port, using_size, output_size);
 		for (int m = 0; m < using_size; m++) {
 			for (int out_c = 0; out_c < out_dim.c; out_c++) {
 				for (int in_c = 0; in_c < in_dim.c; in_c++) {
@@ -919,19 +660,12 @@ public:
 						for (int in_w = 0, out_w = 0; out_w < out_dim.w; in_w += w_strd, out_w++) {
 							for (int kh = 0; kh < kernel_dim.h; kh++) {
 								for (int kw = 0; kw < kernel_dim.w; kw++) { //out[out_c][out_h][out_w] += kernel[out_c][in_c][kernel_h][kernel_w] * in[in_c][in_h + kernel_h][in_w + kernel_w]
-									dot_container[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)] += kernel[out_c][(in_c*kernel_plain_size) + (kh * kernel_dim.w) + (kw)]
-										* input_port[m][(in_c * (in_plain_size)) + (in_dim.w *(in_h + kh)) + (in_w + kw)];
-
+									next_port[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)] += _square_(kernel[out_c][(in_c*kernel_plain_size) + (kh * kernel_dim.w) + (kw)]
+										- input_port[m][(in_c * (in_plain_size)) + (in_dim.w *(in_h + kh)) + (in_w + kw)]);
 								}
 							}
 						}
 					}
-				}
-				for (int k = 0; k < out_plain_size; k++) {
-					next_port[m][(out_c * out_plain_size) + k] = (dot_container[m][(out_c * out_plain_size) + k] + Cp[out_c])
-																*(dot_container[m][(out_c * out_plain_size) + k] + Cp[out_c])
-																*(dot_container[m][(out_c * out_plain_size) + k] + Cp[out_c])
-																+ bias[out_c];
 				}
 			}
 		}
@@ -941,25 +675,255 @@ public:
 		km_2d::fill_zero(downstream, using_size, input_size);
 		for (int m = 0; m < using_size; m++) {
 			for (int out_c = 0; out_c < out_dim.c; out_c++) {
-				for (int k = 0; k < out_plain_size; k++) {
-					b_grad[out_c] += dLoss[m][(out_c * out_plain_size) + k];
-					Cp_grad[out_c] += dLoss[m][(out_c * out_plain_size) + k] * 3.0*_square_(Cp[out_c] + dot_container[m][(out_c * out_plain_size) + k]);
-				}
 				for (int in_c = 0; in_c < in_dim.c; in_c++) {
 					for (int in_h = 0, out_h = 0; out_h < out_dim.h; in_h += h_strd, out_h++) {
 						for (int in_w = 0, out_w = 0; out_w < out_dim.w; in_w += w_strd, out_w++) {
+							//b_grad[out_c] += dLoss[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)];
 							for (int kh = 0; kh < kernel_dim.h; kh++) {
 								for (int kw = 0; kw < kernel_dim.w; kw++) { //out[out_c][out_h][out_w] += kernel[out_c][in_c][kernel_h][kernel_w] * in[in_c][in_h + kernel_h][in_w + kernel_w]
 									k_grad[out_c][(in_c*kernel_plain_size) + (kh * kernel_dim.w) + (kw)] += dLoss[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)]
-										* input_port[m][(in_c * (in_plain_size)) + (in_dim.w *(in_h + kh)) + (in_w + kw)] * 3.0*_square_(Cp[out_c] + dot_container[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)]);
-									downstream[m][(in_c * (in_plain_size)) + (in_dim.w *(in_h + kh)) + (in_w + kw)] += dLoss[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)] *
-										kernel[out_c][(in_c*kernel_plain_size) + (kh * kernel_dim.w) + (kw)] * 3.0*_square_(Cp[out_c] + dot_container[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)]);
+										* 2.0 * (kernel[out_c][(in_c*kernel_plain_size) + (kh * kernel_dim.w) + (kw)] - input_port[m][(in_c * (in_plain_size)) + (in_dim.w *(in_h + kh)) + (in_w + kw)]);
+									downstream[m][(in_c * (in_plain_size)) + (in_dim.w *(in_h + kh)) + (in_w + kw)] += dLoss[m][(out_c * out_plain_size) + (out_h*out_dim.w) + (out_w)]
+										* 2.0 * (input_port[m][(in_c * (in_plain_size)) + (in_dim.w *(in_h + kh)) + (in_w + kw)] - kernel[out_c][(in_c*kernel_plain_size) + (kh * kernel_dim.w) + (kw)]);
 								}
 							}
 						}
 					}
 				}
 			}
+		}
+	}
+};
+class GaussianRBF : public activation {
+public:
+	double* gamma;
+	double* gamma_grad;
+	GaussianRBF() { c_alloc = false;}
+	GaussianRBF(int size) { 
+		create(size); 
+		gamma_grad = new double[1];
+		gamma = new double[1];
+		gamma[0] = 0.5;
+		c_alloc = true;
+	}
+	virtual unit* clone() {
+		GaussianRBF* _clone = new GaussianRBF(input_size);
+		_clone->gamma[0] = gamma[0];
+		return _clone;
+	}
+	void forward(double** &next_port) {
+		for (int m = 0; m < using_size; m++) {
+			for (int i = 0; i < input_size; i++) {
+				next_port[m][i] = exp(-gamma[0] * input_port_container[m][i]);
+			}
+		}
+	}
+	virtual void delegate(vector<double*>& p_bag, vector<double*>& g_bag, vector<int>& len_bag) {
+		p_bag.push_back(gamma);
+		g_bag.push_back(gamma_grad);
+		len_bag.push_back(1);
+	}
+
+	void calculate(double* &next) {
+		double enx = 0.0, ex = 0.0;
+		for (int i = 0; i < input_size; i++) {
+			next[i] = exp(-gamma[0] * in_port[i]);
+		}
+	}
+	void backward(double** const& dLoss) {
+		double enx = 0.0, ex = 0.0;
+		for (int m = 0; m < using_size; m++) {
+			for (int i = 0; i < input_size; i++) {
+				gamma_grad[0] += -input_port_container[m][i] * exp(-gamma[0] * input_port_container[m][i]) * dLoss[m][i];
+				downstream[m][i] = -gamma[0] * exp(-gamma[0] * input_port_container[m][i]) * dLoss[m][i];
+			}
+		}
+	}
+	~GaussianRBF() {
+		if (c_alloc) {
+			delete[] gamma;
+			delete[] gamma_grad;
+		}
+	}
+
+};
+class BatchNormalizer : public learnable {
+public:
+	int n_group;
+	int n_elems;
+	double divider;
+	double* scale;
+	double* shift;
+	double* scale_grad;
+	double* shift_grad;
+	double* batch_mean;
+	double* batch_variance;
+	double* test_mean;
+	double* test_variance;
+	double* dLoss_mean;
+	double* dLoss_var;
+	double** norm_container;
+	bool b_alloc;
+
+	double exp_moving;
+	BatchNormalizer() { c_alloc = false; b_alloc = false; }
+	BatchNormalizer(int size) {
+		create(1, size);
+	}
+	BatchNormalizer(shape _shape) {
+		create(_shape.c, _shape.h*_shape.w);
+	}
+	void create(int group, int elements) {
+		n_group = group;
+		n_elems = elements;
+		input_size = n_group * n_elems;
+		output_size = input_size;
+		divider = 1.0 / n_elems;
+		scale = km_1d::alloc(n_group);
+		shift = km_1d::alloc(n_group);
+		scale_grad = km_1d::alloc(n_group);
+		shift_grad = km_1d::alloc(n_group);
+		batch_mean = km_1d::alloc(n_group);
+		batch_variance = km_1d::alloc(n_group);
+		test_mean = km_1d::alloc(n_group);
+		test_variance = km_1d::alloc(n_group);
+		km_1d::fill_zero(test_mean, n_group);
+		km_1d::fill_zero(test_variance, n_group);
+
+		dLoss_mean = km_1d::alloc(n_group);
+		dLoss_var = km_1d::alloc(n_group);
+		for (int i = 0; i < n_group; i++) {
+			scale[i] = 1.0;
+		}
+		exp_moving = 0.95;
+		km_1d::fill_zero(shift, n_group);
+		in_port = km_1d::alloc(input_size);
+		c_alloc = true;
+		b_alloc = false;
+	}
+	virtual unit* clone() {
+		BatchNormalizer* _clone = new BatchNormalizer();
+		_clone->create(n_group, n_elems);
+		for (int i = 0; i < n_group; i++) {
+			_clone->scale[i] = scale[i];
+			_clone->shift[i] = shift[i];
+			_clone->test_mean[i] = test_mean[i];
+			_clone->test_variance[i] = test_variance[i];
+		}
+
+
+		return _clone;
+	}
+	void alloc(int b_size) {
+		if (b_alloc) {
+			km_2d::free(norm_container, max_batch_size);
+			km_2d::free(input_port_container, max_batch_size);
+		}
+		max_batch_size = b_size;
+		using_size = max_batch_size;
+		norm_container = km_2d::alloc(max_batch_size, input_size);
+		downstream_container = km_2d::alloc(max_batch_size, input_size);
+		input_port_container = km_2d::alloc(max_batch_size, input_size);
+		divider = 1.0 / (max_batch_size*n_elems);
+		input_port = input_port_container;
+		downstream = downstream_container;
+		b_alloc = true;
+	}
+	virtual void UseMemory(const int& _using_size) {
+		assert(max_batch_size >= _using_size);
+		using_size = _using_size;
+		divider = 1.0 / (using_size*n_elems);
+	}
+
+	virtual void delegate(vector<double*>& p_bag, vector<double*>& g_bag, vector<int>& len_bag) {
+		p_bag.push_back(scale);
+		g_bag.push_back(scale_grad);
+		len_bag.push_back(n_group);
+		p_bag.push_back(shift);
+		g_bag.push_back(shift_grad);
+		len_bag.push_back(n_group);
+	}
+	
+	void calculate(double* &next) {
+		for (int g = 0; g < n_group; g++) {
+			for (int i = 0; i < n_elems; i++) {
+				next[g*n_elems + i] = scale[g] *((in_port[g*n_elems + i] - test_mean[g])/sqrt(test_variance[g])) + shift[g];
+			}
+		}
+	}
+	void forward(double** &next_port) {
+		for (int g = 0; g < n_group; g++) {
+			batch_mean[g] = 0.0;
+			for (int m = 0; m < using_size; m++) {
+				for (int i = 0; i < n_elems; i++) {
+					batch_mean[g] += input_port_container[m][g*n_elems + i];
+				}
+			}
+			batch_mean[g] = batch_mean[g] * divider;
+			batch_variance[g] = 0.0;
+			for (int m = 0; m < using_size; m++) {
+				for (int i = 0; i < n_elems; i++) {
+					batch_variance[g] += _square_(input_port_container[m][g*n_elems + i] - batch_mean[g]);
+				}
+			}
+			batch_variance[g] = epsilon + batch_variance[g] * divider;
+			test_mean[g] = exp_moving * test_mean[g] + (1.0 - exp_moving)*batch_mean[g];
+			test_variance[g] = exp_moving * test_variance[g] + (1.0 - exp_moving)*batch_variance[g];
+		}
+		for (int m = 0; m < using_size; m++) {
+			for (int g = 0; g < n_group; g++) {
+				for (int i = 0; i < n_elems; i++) {
+					norm_container[m][g*n_elems + i] = (input_port_container[m][g*n_elems + i] - batch_mean[g]) / sqrt(batch_variance[g]);
+					next_port[m][g*n_elems + i] = scale[g] * norm_container[m][g*n_elems + i] + shift[g];
+				}
+			}
+		}
+	}
+	void backward(double** const& dLoss) {
+		for (int g = 0; g < n_group; g++) {
+			dLoss_mean[g] = 0.0;
+			dLoss_var[g] = 0.0;
+		}
+		for (int m = 0; m < using_size; m++) {
+			for (int g = 0; g < n_group; g++) {
+				for (int i = 0; i < n_elems; i++) {
+					shift_grad[g] += dLoss[m][g*n_elems + i];
+					scale_grad[g] += dLoss[m][g*n_elems + i] * norm_container[m][g*n_elems + i];
+					downstream_container[m][g*n_elems + i] = dLoss[m][g*n_elems + i] * scale[g];
+					dLoss_mean[g] += -pow(batch_variance[g], -0.5)*downstream_container[m][g*n_elems + i];
+					dLoss_var[g] += (0.5)*(batch_mean[g] - input_port_container[m][g*n_elems + i])*pow(batch_variance[g], -1.5) * downstream_container[m][g*n_elems + i];
+				}
+			}
+		}
+		for (int m = 0; m < using_size; m++) {
+			for (int g = 0; g < n_group; g++) {
+				for (int i = 0; i < n_elems; i++) {
+					downstream_container[m][g*n_elems + i] = 
+						(downstream_container[m][g*n_elems + i]/sqrt(batch_variance[g])) 
+						+ dLoss_var[g] 
+						* (2.0 *divider)
+						* (input_port_container[m][g*n_elems + i] - batch_mean[g]) 
+						+ (dLoss_mean[g] * divider);
+				}
+			}
+		}
+	}
+	~BatchNormalizer(){
+
+		if (c_alloc) {
+			delete[] scale;
+			delete[] shift;
+			delete[] scale_grad;
+			delete[] shift_grad;
+			delete[] batch_mean;
+			delete[] batch_variance;
+			delete[] test_mean;
+			delete[] test_variance;
+			delete[] dLoss_mean;
+			delete[] dLoss_var;
+		}
+		if (b_alloc) {
+			km_2d::free(norm_container, max_batch_size);
 		}
 	}
 };
@@ -1022,6 +986,7 @@ public:
 		} _clone->publish();
 		return _clone;
 	}
+
 	void forward(double** &next_port) {
 		for (int i = 0; i < n_unit - 1; i++) { /* main stream */
 			main_stream[i]->forward(main_stream[i + 1]->input_port);

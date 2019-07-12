@@ -86,6 +86,11 @@ namespace km_1d {
 			arr[i] = 0.0;
 		}
 	}
+	void fill(double*& arr, const double& value,const int& len) {
+		for (int i = 0; i < len; i++) {
+			arr[i] = value;
+		}
+	}
 	void copy(double*& dest, double* const& src, const int& len) {
 		for (int i = 0; i < len; i++) {
 			dest[i] = src[i];
@@ -158,6 +163,13 @@ namespace km_2d {
 		for (int i = 0; i < row; i++) {
 			for (int j = 0; j < col; j++) {
 				arr[i][j] = 0.0;
+			}
+		}
+	}
+	void fill(double**& arr, const double& value, const int& row, const int& col) {
+		for (int i = 0; i < row; i++) {
+			for (int j = 0; j < col; j++) {
+				arr[i][j] = value;
 			}
 		}
 	}

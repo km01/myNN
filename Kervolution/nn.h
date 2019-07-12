@@ -40,6 +40,7 @@ public:
 		out_port = km_1d::alloc(output_size);
 		content_alloc = true;
 	}
+
 	virtual void UseMemory(const int& _using_size) {
 		assert(max_batch_size >= _using_size);
 		using_size = _using_size;
@@ -52,6 +53,8 @@ public:
 			layer[i]->delegate(p_bag, g_bag, len_bag);
 		}
 	}
+
+
 	virtual void alloc(int b_size) {
 		if (model_alloc) {
 			km_2d::free(output_port, max_batch_size);
@@ -81,6 +84,11 @@ public:
 			layer[i]->calculate(layer[i + 1]->in_port);
 		}
 		layer[n_layer - 1]->calculate(next);
+	}
+	int one_predict(double*& in) {
+		charge(in);
+		calculate(out_port);
+		return km::argmax(out_port, output_size);
 	}
 	void predict(double** & input) {
 		set_input(input);
