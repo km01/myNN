@@ -30,10 +30,11 @@ public:
 
 		THE_END = false;
 		vis->snowy->InitSession();
+		vis->snowy->interact(Snowy::HOLD);
 		run();
 	}
 	Snowy::ACTION getAgentCommand() {
-		int command = agent->policy(vis->snowy->current_S);
+		int command = agent->NoGradDeterministicPolicy(vis->snowy->S);
 		return (Snowy::ACTION)command;
 	}
 	Snowy::ACTION getUserCommand() {
@@ -59,7 +60,7 @@ public:
 		vis->snowy->interact(getCommand());
 		vis->visualize();
 		std::this_thread::sleep_for(std::chrono::milliseconds(delaymillisecond));
-		if (vis->snowy->current_T == TERMINAL) {
+		if (vis->snowy->T == TERMINAL) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 			THE_END = true;
 		}

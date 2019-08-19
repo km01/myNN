@@ -40,13 +40,13 @@ public:
 	void draw_world() {
 		for (int h = 0; h < snowy->grid_height; h++) {
 			for (int w = 0; w < snowy->grid_width; w++) {
-				if (snowy->current_S[h * snowy->grid_width + w] == Snowy::ID::_void_) {
+				if (snowy->S[h * snowy->grid_width + w] == Snowy::ID::_void_) {
 					glColor3dv(Colors::silver.data);
 				}
-				else if (snowy->current_S[h * snowy->grid_width + w] == Snowy::ID::_snow_) {
+				else if (snowy->S[h * snowy->grid_width + w] == Snowy::ID::_snow_) {
 					glColor3dv(Colors::white.data);
 				}
-				else if (snowy->current_S[h * snowy->grid_width + w] == Snowy::ID::_man_) {
+				else if (snowy->S[h * snowy->grid_width + w] == Snowy::ID::_man_) {
 					glColor3dv(Colors::red.data);
 				}
 				else {
@@ -90,7 +90,7 @@ public:
 		draw_Frame();
 		draw_world();
 		draw_Cell();
-		if (snowy->current_T) {
+		if (snowy->T) {
 			string cur_Scene = "score :" + std::to_string(snowy->TotalScore);
 			string cur_Time = "scene : THE END";
 			string code = "https://github.com/jeongkimin/myNN";

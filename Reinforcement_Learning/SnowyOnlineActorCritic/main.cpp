@@ -12,78 +12,100 @@ int main(int argc, char* argv[]) {
 
 	glutInit(&argc, argv);
 	Snowy::envirnoment* snowy = new Snowy::envirnoment(4, 4);
-	snowy->setHumdity(0.3);
-
-
+	snowy->setHumdity(0.7);
 
 	/*---------------------------------------------------
-			actor estimates policy(a|s) 
-							PolicyGradient로 -(Q(s,a) - V(s))/policy(a|s)를 사용. 
+		Decoder decodes 'environment state' to 'actor&critic input' 
 
+													*/
+	Decoder* decoder = new Decoder(n_Layer(6)); {
+		decoder->layer[0] = new Kernel3D(shape(1, 4, 4), shape(1, 2, 2), shape(12, 3, 3), 1, 1);
+		decoder->layer[1] = new ReLU(12 * 3 * 3);
+		decoder->layer[2] = new Kernel3D(shape(12, 3, 3), shape(12, 2, 2), shape(12, 2, 2), 1, 1);
+		decoder->layer[3] = new ReLU(12 * 2 * 2);
+		decoder->layer[4] = new Kernel3D(shape(12, 2, 2), shape(12, 2, 2), shape(24, 1, 1), 1, 1);
+		decoder->layer[5] = new ReLU(24);
+	}; decoder->publish(); decoder->AllocMemory(1); decoder->UseMemory(1);
+
+	/*---------------------------------------------------
+			actor estimates π(a|s).
+			
+			gradient = π(a|s) * ( - A(s,a) )
+			
+			A(s,a) = Q(s,a) - V(s) 
+				   = ( r + gamma * V(s') -  V(s))
+
+			V(s), V(s') = critic output
 														*/
-	Actor* actor = new Actor(n_Layer(14)); {
-		actor->layer[0] = new Kernel3D(shape(1, 4, 4), shape(1, 2, 2), shape(16, 3, 3), 1, 1);
-		actor->layer[1] = new ReLU(16 * 3 * 3);
-		actor->layer[2] = new Kernel3D(shape(16, 3, 3), shape(16, 2, 2), shape(24, 2, 2), 1, 1);
-		actor->layer[3] = new ReLU(24 * 2 * 2);
-		actor->layer[4] = new Kernel3D(shape(24, 2, 2), shape(24, 2, 2), shape(32, 1, 1), 1, 1);
-		actor->layer[5] = new ReLU(32);
-		actor->layer[6] = new fully_connected(32, 32);
-		actor->layer[7] = new ReLU(32);
-		actor->layer[8] = new fully_connected(32, 32);
-		actor->layer[9] = new ReLU(32);
-		actor->layer[10] = new fully_connected(32, 32);
-		actor->layer[11] = new ReLU(32);
-		actor->layer[12] = new fully_connected(32, 3);
-		actor->layer[13] = new Softmax(3);
+	Actor* actor = new Actor(n_Layer(6)); {
+		actor->layer[0] = new fully_connected(24, 18);
+		actor->layer[1] = new ReLU(18);
+		actor->layer[2] = new fully_connected(18, 18);
+		actor->layer[3] = new ReLU(18);
+		actor->layer[4] = new fully_connected(18, 3);
+		actor->layer[5] = new Softmax(3);
 	}   actor->publish(); actor->AllocMemory(1); actor->UseMemory(1);
 	/*--------------------------------------------------*/
 
 	/*---------------------------------------------------
-		critic estimates Q(s,a) := E[r+V(s')]
-								 = E[r + E[Q(s',a')].
-								 Bellan Expectation equation을 사용.
+		critic estimates V(s) := E_a~π_[r+V(s')]
 														*/
 
-	Critic* critic = new Critic(n_Layer(9)); {
-		critic->layer[0] = new Kernel3D(shape(1, 4, 4), shape(1, 2, 2), shape(12, 3, 3), 1, 1);
-		critic->layer[1] = new ReLU(12 * 3 * 3);
-		critic->layer[2] = new Kernel3D(shape(12, 3, 3), shape(12, 2, 2), shape(16, 2, 2), 1, 1);
-		critic->layer[3] = new ReLU(16 * 2 * 2);
-		critic->layer[4] = new Kernel3D(shape(16, 2, 2), shape(16, 2, 2), shape(18, 1, 1), 1, 1);
-		critic->layer[5] = new ReLU(18);
-		critic->layer[6] = new fully_connected(18, 12);
-		critic->layer[7] = new ReLU(12);
-		critic->layer[8] = new fully_connected(12, 3);
+	Critic* critic = new Critic(n_Layer(5)); {
+		critic->layer[0] = new fully_connected(24, 24);
+		critic->layer[1] = new ReLU(24);
+		critic->layer[2] = new fully_connected(24, 12);
+		critic->layer[3] = new ReLU(12);
+		critic->layer[4] = new fully_connected(12, 1);
 	}   critic->publish(); critic->AllocMemory(1); critic->UseMemory(1);
 	/*--------------------------------------------------*/
 
 	/*---------------------------------------------------
-		  set optimizer									*/
+		  set optimizer									*/ 
+	
 	optimizer* actor_optim = new optimizer(actor);
 	optimizer* critic_optim = new optimizer(critic);
-	actor_optim->setLearingRate(0.03);
-	critic_optim->setLearingRate(0.02);
+	optimizer* decoder_optim = new optimizer(decoder);
+	decoder_optim->setLearingRate(0.005);
+	decoder_optim->use_Momentum(0.9);
+	actor_optim->setLearingRate(0.005);
+	actor_optim->use_Momentum(0.9);
+	critic_optim->setLearingRate(0.005);
+	critic_optim->use_Momentum(0.9);
 	/*--------------------------------------------------*/
 
 	/*---------------------------------------------------
 			  set ActorCritic							
 			  Online Learning. 
 														*/
-	VanillaActorCritic* model = new VanillaActorCritic(snowy, actor, critic, actor_optim, critic_optim);
-	model->setGamma(0.5);
+	VanillaActorCritic* model = new VanillaActorCritic(snowy,
+													   decoder,
+													   decoder_optim,
+													   actor,
+													   actor_optim,
+													   critic,
+													   critic_optim);
+	model->setGamma(0.9);
 	/*--------------------------------------------------*/
-	for (int i = 0; i < 10000; i++) {
-		cout << "sess " << i << " : " << model->Run() << endl;
-		if (i % 1001 == 0) {
-			SnowyLauncher Game(snowy, actor, 50);
-			Game.run();
+	for (int i = 0; i < 1000; i++) {
+		cout << "sess " << i << " : " << model->Run2() << endl;
+		if (i % 200 == 0) {
+			SnowyLauncher game(snowy, actor, 0);
+			game.Run();
 		}
 	}
-
+	for (int i = 0; i < 100; i++) {
+		cout << "sess " << i << " : " << model->Run2() << endl;
+		if (i % 10 == 0) {
+			SnowyLauncher game(snowy, actor, 0);
+			game.Run();
+		}
+	}
 	delete actor;
 	delete actor_optim;
 	delete critic;
 	delete critic_optim;
+	delete decoder;
+	delete decoder_optim;
 	delete snowy;
 }
