@@ -1,7 +1,7 @@
 #pragma once
 #include "Snowy.h"
 #include "Jm.h"
-
+#include "McSamplingDoubleDqn.h"
 
 class SnowyVisualizer {
 public:
@@ -138,30 +138,29 @@ public:
 class SnowyLauncher : public Game {
 public:
 	SnowyVisualizer* vis = nullptr;
-	int player_id = 0;
+	DuelingNetwork_Wrapper* agent = nullptr;
 	int command = 0;
 	int delaymillisecond = 20;
-
 	SnowyLauncher(snowy::Snowy* snowy, int additional_delay = 0) {
 		vis = new SnowyVisualizer(snowy);
 		command = snowy::ACTION::HOLD;
-		player_id = PLAYER::HUMAN;
 		delaymillisecond = additional_delay + 20;
 	}
+
 
 	~SnowyLauncher() {
 		delete vis;
 	}
 
-	void Run() {
-
+	void Run(DuelingNetwork_Wrapper* agent = nullptr) {
+		this->agent = agent;
 		THE_END = false;
 		vis->snowy->initialize();
 		run();
 	}
 
 	int getAgentCommand() {
-		return snowy::ACTION::HOLD;
+		return agent->actor_argmax(vis->frame_buffer);
 	}
 
 	int getUserCommand() {
@@ -177,17 +176,17 @@ public:
 	}
 
 	int getCommand() {
-		if (player_id == PLAYER::NEURAL_NETWORK) {
-			return getAgentCommand();
+		if (agent == nullptr) {
+			return getUserCommand();
 		}
 		else {
-			return getUserCommand();
+			return getAgentCommand();
 		}
 	}
 
 	void update() override {
-		vis->snowy->transitionOccur(getCommand());
 		vis->visualize();
+		vis->snowy->transitionOccur(getCommand());
 		std::this_thread::sleep_for(std::chrono::milliseconds(delaymillisecond));
 		if (vis->snowy->isTerminal()) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(200));

@@ -6,15 +6,15 @@ namespace snowy {
 
 	namespace REWARD {
 		const double GOOD = 0.02;
-		const double DIE = -0.5;
+		const double DIE = -0.7;
 		const double BAD = -0.05;
 		const double NOT_GOOD = -0.02;
 	}
 	namespace SCENE_ID {
 
-		const double MAN_DIED = 1.0;
-		const double MAN_SURVIVED = 0.5;
-		const double SNOW = -0.5;
+		const double MAN_DIED = 2.0;
+		const double MAN_SURVIVED = 1.0;
+		const double SNOW = -1.0;
 		const double VOID_ = 0.0;
 	}
 	namespace ACTION {
@@ -102,17 +102,17 @@ namespace snowy {
 		}
 
 		virtual void getCurrentRT(double& reward, bool& is_terminal) {
+			is_terminal = NON_TERMINAL;
+			reward = REWARD::GOOD;
 			for (int i = 0; i < MAX_SNOW; i++) {
 				if (snow_y[i] == 0) {
 					if (snow_x[i] == man_x) {
 						is_terminal = TERMINAL;
 						reward = REWARD::DIE;
-						return;
+						break;
 					}
 				}
 			}
-			is_terminal = NON_TERMINAL;
-			reward = REWARD::GOOD;
 		}
 
 		virtual void transitionOccur(const int& cause) {
