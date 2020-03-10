@@ -1,0 +1,1 @@
+GMM clustering을 gradient descent 방식으로 구현.
