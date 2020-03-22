@@ -173,6 +173,9 @@ public:
 		}
 	}
 
+	/* OBJECTIVE : TRUE GMM NEGATIVE LOG-LIKELIHOOD  
+		수학적으로 완벽하지만 NaN 위험도가 높다.
+	*/
 	double fit(darr::v2D const& data, const int& n_data) {
 		double gmm_avg_log_likelihood = 0.0;
 		double p_x = 0.0;
@@ -200,9 +203,8 @@ public:
 				for (int i = 0; i < n_variables; i++) {
 					likelihood_grad[k][i] = (model_likelihood_cache[k]/likelihood_cache[k][i]) * ( -prior_cache[k] / p_x ) ;
 					mean_grad[k][i] -= likelihood_grad[k][i] * 
-						(likelihood_cache[k][i] * (mean_cache[k][i] - data[n][i]) * 
-						(mean_cache[k][i] - data[n][i]) * (mean_cache[k][i] - data[n][i]) / 
-						(stddev_cache[k][i] * stddev_cache[k][i]));
+						(likelihood_cache[k][i]  * (mean_cache[k][i] - data[n][i]) / 
+						( stddev_cache[k][i] * stddev_cache[k][i]));
 					stddev_grad[k][i] += likelihood_grad[k][i] * (likelihood_cache[k][i] / stddev_cache[k][i])
 						* (km::square((mean_cache[k][i] - data[n][i])/stddev_cache[k][i]) - 1.0);
 				}
@@ -216,7 +218,8 @@ public:
 		}
 		return gmm_avg_log_likelihood/(double)n_data;
 	}
-
+	
+	/* OBJECTIVE : MAX-COMPONENT LOWER BOUND (readme에 있는 논문 참고)  */
 	double fit2(darr::v2D const& data, const int& n_data) {
 		double gmm_avg_log_likelihood = 0.0;
 		double p_x = 0.0;
