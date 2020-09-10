@@ -102,7 +102,7 @@ $e_i = Y_i - \hat{Y_i} $ = i-th residual
 
 
 $$
-\sum\limits_{i=1}^{n} e_{i} = \sum\limits_{i=1}^{n} Y_i - \hat{Y_i}  \\=\sum\limits_{i=1}^{n}( Y_i - \hat{\beta_0 }- \hat{\beta_1} \hat{X_i}) = 0 \tag{a}
+\sum\limits_{i=1}^{n} e_{i} = \sum\limits_{i=1}^{n} Y_i - \hat{Y_i}  \\ = \sum\limits_{i=1}^{n}( Y_i - \hat{\beta_0 }- \hat{\beta_1} \hat{X_i}) = 0 \tag{a}
 $$
 
 위의 식은 손실함수에서 $\beta_0$ 편미분 = 0한 식이다. 
