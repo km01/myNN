@@ -222,7 +222,7 @@ $$
 
 한편 
 $$
-\mathbb{Var}[\hat{\beta_1}]=  \sigma_{\epsilon}^{2}\sum\limits_{i=1}^{n}w_{i}^{2}
+\mathbb{Var}[\hat{\beta_1}]= \sigma_{\epsilon}^{2} \sum\limits_{i=1}^{n}w_{i}^{2}
 $$
 이므로
 $$
@@ -230,7 +230,7 @@ $$
 $$
 이다. 근데 
 $$
-\sum\limits_{i=1}^{n} w_i d_i = \frac{1}{S_{xx}} \sum\limits_{i=1}^{n}(X_i - \bar{X})d_i = \frac{1}{S_{xx}}(\sum\limits_{i=1}^{n}X_i d_i -\bar{X}\sum\limits_{i=1}^{n}d_i) = 0
+\sum\limits_{i=1}^{n} w_i d_i = \frac{1}{S_{xx}} \sum\limits_{i=1}^{n}(X_i - \bar{X})d_i = \frac{1}{S_{xx}}( \sum\limits_{i=1}^{n}X_i d_i -\bar{X} \sum\limits_{i=1}^{n}d_i) = 0
 $$
 이므로 
 $$
